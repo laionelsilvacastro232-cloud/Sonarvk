@@ -1,0 +1,114 @@
+# SONAR — Guia de Instalação (Vercel + Neon)
+
+Plataforma musical completa: player real, contas, artistas, playlists, suporte e painel admin.
+Stack: Next.js + PostgreSQL (Drizzle ORM). Design preto e branco.
+
+---
+
+## 1. O que você precisa (tudo grátis)
+
+- Conta no **GitHub** (github.com) — guardar o código
+- Conta na **Vercel** (vercel.com) — hospedar com link fixo
+- Conta no **Neon** (neon.tech) — banco de dados PostgreSQL
+- **Node.js 20+** no seu computador (nodejs.org) — só para criar as tabelas uma vez
+
+## 2. Banco de dados (Neon)
+
+> **Supabase como banco PostgreSQL (opcional):** o SONAR não precisa ser
+> reconstruído. No Supabase, copie a Connection string do Postgres
+> (Session pooler) e use esse valor em `DATABASE_URL`. As tabelas são criadas
+> automaticamente na primeira abertura. A autenticação continua sendo a do
+> próprio SONAR (e-mail/senha, Google OAuth e sessões seguras).
+
+1. neon.tech → **New Project** → nome `sonar` → **Create Project**
+2. Copie a **Connection string** (começa com `postgres://`) — é o seu `DATABASE_URL`
+
+## 3. Subir o código (GitHub) — jeito rápido pelo celular (SEM arrastar arquivos)
+
+NÃO suba arquivo por arquivo no GitHub. Faça assim, tudo pelo iPhone:
+
+1. Abra no app: **/publicar** (ex.: `seu-link/publicar`)
+2. Toque em **Criar chave no GitHub** → login → desça até o fim → **Generate token** → copie a chave `ghp_...`
+3. Volte em /publicar, preencha: seu **usuário do GitHub**, o **nome do repositório** e a **chave**
+4. Toque em **Enviar código para o GitHub** e aguarde o "Tudo certo!"
+5. Para atualizar depois: repita o passo 4 — a Vercel republica sozinha, link não muda, usuários ficam salvos no banco (Neon).
+
+## 4. As tabelas são criadas AUTOMATICAMENTE
+
+Você NÃO precisa rodar nenhum comando: na primeira vez que o aplicativo abrir
+(com o `DATABASE_URL` certo), ele cria todas as tabelas no Neon e já cadastra
+o catálogo inicial + a sua conta de administrador (das variáveis
+`ADMIN_EMAIL` / `ADMIN_PASSWORD`).
+
+(Opcional, para desenvolvedores: `npm install`, `.env` a partir do
+`.env.example`, `npx drizzle-kit push` e `npm run dev` rodam localmente.)
+
+## 5. Publicar na Vercel (link fixo)
+
+1. vercel.com → **Add New → Project** → importe o repositório do GitHub
+2. Em **Environment Variables**, cadastre (valores do seu `.env`):
+   - `DATABASE_URL`
+   - `AUTH_SECRET` (texto longo e secreto — NÃO mude depois, ou todos deslogam)
+   - `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` (sua conta admin)
+   - `SMTP_USER`, `SMTP_PASS` (e-mail de recuperação — passo 6)
+3. **Deploy** → seu link fixo será algo como `sonar.vercel.app`
+4. **Atualizações futuras:** basta enviar o código novo ao GitHub — a Vercel
+   republica sozinha, o link NÃO muda e os usuários NÃO são apagados
+   (eles ficam no Neon, separados do código).
+
+## 6. E-mail de recuperação grátis (Gmail)
+
+1. myaccount.google.com → **Segurança** → ative a **Verificação em duas etapas**
+2. Busque **Senhas de app** → nome `SONAR` → **Criar** → copie as 16 letras
+3. Na Vercel: `SMTP_USER=seu@gmail.com` e `SMTP_PASS=` (16 letras, sem espaços)
+4. Pronto: "Esqueci minha senha" envia código de 6 dígitos (vale 15 min)
+
+Sem isso, o aplicativo NÃO mostra código na tela e NÃO depende de administrador: ele avisa que o envio automático ainda não está ativo. A senha normal da conta do Gmail não serve como `SMTP_PASS`; precisa ser a Senha de app de 16 letras.
+
+**Alternativa Resend:** crie uma conta em resend.com, verifique o remetente/domínio, crie uma API key e configure `RESEND_API_KEY` + `RESEND_FROM` na hospedagem. O aplicativo passa a enviar um link seguro de redefinição (30 minutos, uso único) pelo Resend da mesma forma.
+
+## 7. Acessos
+
+- **Site:** seu link da Vercel
+- **Painel admin:** `/admin` — entre com `ADMIN_EMAIL` / `ADMIN_PASSWORD`
+- **Suporte ao usuário:** `/suporte` — você responde em Admin → Suporte
+- **Artistas:** `/seja-artista` — você aprova em Admin → Artistas e as músicas em Admin → Músicas
+
+## 8. Regras de segurança
+
+- Nunca compartilhe `.env`, `AUTH_SECRET` ou senhas — o ZIP vem SEM segredos de propósito
+- Se vazar alguma chave: gere outra e atualize na Vercel
+- Senhas dos usuários são criptografadas (bcrypt) — ninguém consegue lê-las
+
+## 9. Problemas comuns
+
+| Problema | Solução |
+|---|---|
+| Tabelas não existem / erro de banco | Rode `npx drizzle-kit push` com o `DATABASE_URL` certo |
+| Todo mundo deslogou | O `AUTH_SECRET` mudou — volte ao valor anterior |
+| Código de senha não chega | Confira spam e o passo 6 (SMTP) |
+| Música não aparece | Artista pendente ou música aguardando aprovação no /admin |
+
+## 10. Arquivos enviados pelos artistas
+
+As musicas e imagens enviadas ficam em `public/uploads` e sao entregues pela rota `/api/files`. Em hospedagem com disco permanente (VPS/servidor proprio) funciona direto. Na Vercel o disco e temporario: para producao em escala, conecte um armazenamento externo (S3/Cloudinary/R2) apontando a mesma rota para ele.
+
+
+## 11. Recuperação alternativa e segurança
+
+- Quem perdeu o e-mail usa a página `/recuperar-conta`: informa o identificador, explica o problema e recebe um protocolo + código de acompanhamento (guardar na hora).
+- O administrador analisa em **Admin → Recuperação & Segurança**, registra o motivo e aprova ou rejeita.
+- Se aprovado, o próprio usuário cria a nova senha em até 24 horas com o protocolo + código. O administrador nunca vê nem escolhe a senha.
+- Em **Configurações → Sair de todos os dispositivos**, o usuário invalida todas as sessões antigas.
+- Tentativas de login, redefinições e falhas de e-mail ficam registradas em Admin → Recuperação & Segurança (sem senhas ou tokens).
+
+## 12. Estúdio do Artista: músicas, álbuns, videoclipes e letra por IA
+
+- O artista acessa **Estúdio do Artista** (`/area-artista`) pelo menu lateral, pelo ícone de microfone no topo (celular) ou pelo Perfil.
+- Abas: **Publicar música**, **Minhas músicas**, **Álbuns**, **Videoclipes** e **Meu perfil**.
+- Áudio: MP3/WAV/OGG/M4A/FLAC até 25MB. Capa: imagem até 6MB. Videoclipe: MP4/WEBM/MOV até 100MB, vinculado à música.
+- Para a letra automática funcionar de verdade, configure no servidor:
+  - `OPENAI_API_KEY=` (chave da OpenAI, só no backend)
+  - `OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe`
+- Sem a chave, o botão fica desabilitado e o Sonar avisa a pendência — ele não inventa letra. A letra manual continua disponível.
+- Os arquivos enviados ficam em `public/uploads` neste ambiente. Em hospedagem sem disco permanente, conecte um armazenamento externo no futuro.
